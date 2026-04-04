@@ -17,9 +17,17 @@ enum AudioMonitoringState: Equatable {
 
 final class PracticeAudioMonitor {
     private let audioEngine = AVAudioEngine()
-    private let audioSession = AVAudioSession.sharedInstance()
     private var onFrame: ((AudioFrameFeatures) -> Void)?
     private var onStateChange: ((AudioMonitoringState) -> Void)?
+    private var tapInstalled = false
+
+    /// Check whether the device actually has an audio input before touching
+    /// `audioEngine.inputNode` — accessing that property is a **fatal error**
+    /// when no input hardware exists (e.g. Mac "Designed for iPad" simulator).
+    private var hasInputDevice: Bool {
+        let session = AVAudioSession.sharedInstance()
+        return !(session.availableInputs?.isEmpty ?? true)
+    }
 
     func start(
         onFrame: @escaping (AudioFrameFeatures) -> Void,
@@ -44,15 +52,26 @@ final class PracticeAudioMonitor {
     }
 
     func stop() {
-        audioEngine.inputNode.removeTap(onBus: 0)
+        if tapInstalled {
+            audioEngine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
         audioEngine.stop()
-        try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     private func configureAndStart() {
         do {
+            let audioSession = AVAudioSession.sharedInstance()
             try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.defaultToSpeaker, .allowBluetoothHFP])
             try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+
+            guard hasInputDevice else {
+                DispatchQueue.main.async {
+                    self.onStateChange?(.unavailable("No microphone is available in this environment. You can still use the demo pulse."))
+                }
+                return
+            }
 
             let inputNode = audioEngine.inputNode
             let format = inputNode.inputFormat(forBus: 0)
@@ -66,6 +85,7 @@ final class PracticeAudioMonitor {
             inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
                 self?.consume(buffer: buffer, format: format)
             }
+            tapInstalled = true
 
             audioEngine.prepare()
             try audioEngine.start()

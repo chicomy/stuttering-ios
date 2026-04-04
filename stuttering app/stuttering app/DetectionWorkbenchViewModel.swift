@@ -20,6 +20,7 @@ final class DetectionWorkbenchViewModel: ObservableObject {
     @Published var selectedMode: DetectionInputMode = .live
     @Published private(set) var liveMonitoringState: AudioMonitoringState = .idle
     @Published private(set) var liveReport: StutterDetectionReport = .empty
+    @Published private(set) var liveAudioLevel: Double = 0
     @Published private(set) var fileReport: StutterDetectionReport = .empty
     @Published private(set) var selectedFileName: String?
     @Published private(set) var isAnalyzingFile = false
@@ -31,8 +32,11 @@ final class DetectionWorkbenchViewModel: ObservableObject {
     func startLiveAnalysis() {
         liveEngine.reset()
         liveReport = .empty
+        liveAudioLevel = 0
         liveMonitor.start { [weak self] frame in
             guard let self else { return }
+            let normalizedLevel = min(max((Double(frame.rms) - 0.003) / 0.05, 0), 1)
+            self.liveAudioLevel = self.liveAudioLevel * 0.58 + normalizedLevel * 0.42
             self.liveReport = self.liveEngine.process(frame)
         } onStateChange: { [weak self] state in
             guard let self else { return }
@@ -43,11 +47,30 @@ final class DetectionWorkbenchViewModel: ObservableObject {
     func stopLiveAnalysis() {
         liveMonitor.stop()
         liveReport = liveEngine.finalReport()
+        liveAudioLevel = 0
+        liveMonitoringState = .idle
+    }
+
+    func finishLiveAnalysis() -> StutterDetectionReport {
+        liveMonitor.stop()
+        let report = liveEngine.finalReport()
+        liveReport = report
+        liveAudioLevel = 0
+        liveMonitoringState = .idle
+        return report
+    }
+
+    func resetLiveSession() {
+        liveMonitor.stop()
+        liveEngine.reset()
+        liveReport = .empty
+        liveAudioLevel = 0
         liveMonitoringState = .idle
     }
 
     func triggerDemoPulse() {
         liveEngine.reset()
+        liveAudioLevel = 0.72
         liveReport = liveEngine.process(AudioFrameFeatures(rms: 0.046, zeroCrossingRate: 0.19, duration: 0.24))
         liveReport = liveEngine.process(AudioFrameFeatures(rms: 0.041, zeroCrossingRate: 0.18, duration: 0.27))
         liveReport = liveEngine.process(AudioFrameFeatures(rms: 0.043, zeroCrossingRate: 0.20, duration: 0.22))

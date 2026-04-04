@@ -17,6 +17,16 @@ enum EasePalette {
     static let sageSoft = Color(red: 201 / 255, green: 220 / 255, blue: 202 / 255)
     static let mistBlue = Color(red: 227 / 255, green: 235 / 255, blue: 242 / 255)
     static let warmSand = Color(red: 247 / 255, green: 239 / 255, blue: 226 / 255)
+    static let mutedRose = Color(red: 206 / 255, green: 162 / 255, blue: 151 / 255)
+    static let mutedBrick = Color(red: 162 / 255, green: 112 / 255, blue: 105 / 255)
+
+    static func severityColor(for severity: Double) -> Color {
+        let clamped = min(max(severity, 0), 1)
+        let hue = 0.36 - clamped * 0.33
+        let saturation = 0.20 + clamped * 0.25
+        let brightness = 0.88 - clamped * 0.16
+        return Color(hue: hue, saturation: saturation, brightness: brightness)
+    }
 }
 
 struct EaseCard<Content: View>: View {

@@ -80,3 +80,10 @@ private struct HomeOrbView: View {
         }
     }
 }
+#Preview {
+    HomeView(
+        greeting: "Good morning",
+        onBeginPractice: {}
+    )
+}
+
