@@ -375,48 +375,48 @@ private struct LiveSessionReportView: View {
         ZStack {
             EasePalette.background.ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Session report")
-                        .font(.custom("Georgia-Bold", size: 34))
-                        .foregroundStyle(EasePalette.primaryText)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Session report")
+                            .font(.custom("Georgia-Bold", size: 34))
+                            .foregroundStyle(EasePalette.primaryText)
 
-                    Text(reportHeadline)
-                        .font(.system(size: 18))
-                        .foregroundStyle(EasePalette.secondaryText)
-                }
-
-                LiveSeverityOrb(
-                    severity: min(max(report.confidence, 0.08), 1),
-                    color: EasePalette.severityColor(for: report.confidence),
-                    isInteractive: false
-                )
-                .frame(height: 300)
-
-                LiveSessionReportSummary(report: report)
-
-                VStack(alignment: .leading, spacing: 14) {
-                    ReportRow(label: "Duration", value: durationText)
-                    ReportRow(label: "Speech", value: String(format: "%.1fs", report.speechDuration))
-                    ReportRow(label: "Longest run", value: String(format: "%.1fs", report.longestSpeechRun))
-                    ReportRow(label: "Rapid restarts", value: "\(report.rapidRestartCount)")
-                    ReportRow(label: "Tension moments", value: "\(report.elevatedTensionMoments)")
-                }
-
-                Spacer()
-
-                EaseMinimalButton(
-                    title: "Done",
-                    isPrimary: true,
-                    action: {
-                        onDone()
-                        dismiss()
+                        Text(reportHeadline)
+                            .font(.system(size: 18))
+                            .foregroundStyle(EasePalette.secondaryText)
                     }
-                )
+
+                    LiveSeverityOrb(
+                        severity: min(max(report.confidence, 0.08), 1),
+                        color: EasePalette.severityColor(for: report.confidence),
+                        isInteractive: false
+                    )
+                    .frame(height: 300)
+
+                    LiveSessionReportSummary(report: report)
+
+                    VStack(alignment: .leading, spacing: 14) {
+                        ReportRow(label: "Duration", value: durationText)
+                        ReportRow(label: "Speech", value: String(format: "%.1fs", report.speechDuration))
+                        ReportRow(label: "Longest run", value: String(format: "%.1fs", report.longestSpeechRun))
+                        ReportRow(label: "Rapid restarts", value: "\(report.rapidRestartCount)")
+                        ReportRow(label: "Tension moments", value: "\(report.elevatedTensionMoments)")
+                    }
+
+                    EaseMinimalButton(
+                        title: "Done",
+                        isPrimary: true,
+                        action: {
+                            onDone()
+                            dismiss()
+                        }
+                    )
+                }
+                .padding(.horizontal, 28)
+                .padding(.top, 12)
+                .padding(.bottom, 28)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 24)
-            .padding(.bottom, 28)
         }
         .navigationBarBackButtonHidden(true)
     }
