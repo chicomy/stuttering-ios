@@ -19,6 +19,7 @@ final class PracticeAudioMonitor {
     private let audioEngine = AVAudioEngine()
     private var onFrame: ((AudioFrameFeatures) -> Void)?
     private var onStateChange: ((AudioMonitoringState) -> Void)?
+    private var onPCM: ((AVAudioPCMBuffer, AVAudioFormat) -> Void)?
     private var tapInstalled = false
 
     /// Check whether the device actually has an audio input before touching
@@ -31,12 +32,14 @@ final class PracticeAudioMonitor {
 
     func start(
         onFrame: @escaping (AudioFrameFeatures) -> Void,
-        onStateChange: @escaping (AudioMonitoringState) -> Void
+        onStateChange: @escaping (AudioMonitoringState) -> Void,
+        onPCM: ((AVAudioPCMBuffer, AVAudioFormat) -> Void)? = nil
     ) {
         stop()
 
         self.onFrame = onFrame
         self.onStateChange = onStateChange
+        self.onPCM = onPCM
         onStateChange(.requestingPermission)
 
         AVAudioApplication.requestRecordPermission { [weak self] granted in
@@ -102,6 +105,11 @@ final class PracticeAudioMonitor {
 
     private func consume(buffer: AVAudioPCMBuffer, format: AVAudioFormat) {
         guard let features = AudioFeatureExtractor.extract(from: buffer, format: format) else { return }
+
+        // Forward raw PCM (on the audio thread — receiver hops actors as
+        // needed). This lets the streaming-ASR path share the mic tap
+        // without installing a second one.
+        onPCM?(buffer, format)
 
         DispatchQueue.main.async { [onFrame] in
             onFrame?(features)

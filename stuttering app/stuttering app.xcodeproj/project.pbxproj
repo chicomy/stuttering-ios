@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		9649BE932F91F41600DA49F2 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = 9649BE922F91F41600DA49F2 /* WhisperKit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		96BA50F42F742D1900946F92 /* stuttering app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "stuttering app.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,16 +27,25 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9649BE932F91F41600DA49F2 /* WhisperKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		9649BE912F91F41600DA49F2 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		96BA50EB2F742D1900946F92 = {
 			isa = PBXGroup;
 			children = (
 				96BA50F62F742D1900946F92 /* stuttering app */,
+				9649BE912F91F41600DA49F2 /* Frameworks */,
 				96BA50F52F742D1900946F92 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -65,6 +78,7 @@
 			);
 			name = "stuttering app";
 			packageProductDependencies = (
+				9649BE922F91F41600DA49F2 /* WhisperKit */,
 			);
 			productName = "stuttering app";
 			productReference = 96BA50F42F742D1900946F92 /* stuttering app.app */;
@@ -94,6 +108,9 @@
 			);
 			mainGroup = 96BA50EB2F742D1900946F92;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9649BE902F91F27200DA49F2 /* XCRemoteSwiftPackageReference "WhisperKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 96BA50F52F742D1900946F92 /* Products */;
 			projectDirPath = "";
@@ -251,6 +268,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2KS4RTP89L;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ease listens to your speech rhythm to offer gentle slow-down support during practice.";
@@ -283,6 +301,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 2KS4RTP89L;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ease listens to your speech rhythm to offer gentle slow-down support during practice.";
@@ -330,6 +349,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		9649BE902F91F27200DA49F2 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9649BE922F91F41600DA49F2 /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9649BE902F91F27200DA49F2 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 96BA50EC2F742D1900946F92 /* Project object */;
 }

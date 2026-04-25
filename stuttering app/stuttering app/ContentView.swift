@@ -63,7 +63,7 @@ struct ContentView: View {
 
             Spacer(minLength: 12)
 
-            VStack(spacing: 30) {
+            VStack(spacing: 20) {
                 Button {
                     if isLiveActive {
                         let _ = viewModel.finishLiveAnalysis()
@@ -87,23 +87,19 @@ struct ContentView: View {
                     level: viewModel.liveAudioLevel,
                     isActive: isLiveActive
                 )
-                .frame(height: 62)
+                .frame(height: 48)
 
                 Text(liveStatusCaption)
-                    .font(.system(size: 20, weight: .regular))
+                    .font(.system(size: 16, weight: .regular))
                     .foregroundStyle(EasePalette.secondaryText)
-                    .frame(height: 28, alignment: .center)
-
-                Text(summaryCaption)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(EasePalette.secondaryText.opacity(0.55))
-                    .frame(height: 20, alignment: .center)
+                    .frame(height: 22, alignment: .center)
             }
             .frame(maxWidth: .infinity)
 
-            Spacer(minLength: 24)
+            Spacer(minLength: 16)
 
             liveActionArea
+                .frame(maxHeight: .infinity, alignment: .top)
         }
     }
 
@@ -129,16 +125,24 @@ struct ContentView: View {
     }
 
     private var liveActionArea: some View {
-        VStack(spacing: 18) {
-            Text(statusDotLine)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(liveSeverityColor.opacity(0.55))
+        VStack(spacing: 10) {
+            if case .unavailable(let message) = viewModel.liveMonitoringState {
+                Text(message)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(EasePalette.secondaryText.opacity(0.7))
+                    .multilineTextAlignment(.center)
+            } else {
+                LiveTranscriptStrip(
+                    tokens: viewModel.liveTranscript,
+                    isActive: isLiveActive
+                )
+            }
         }
         .frame(maxWidth: .infinity)
     }
 
     private var fileScreen: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Audio file")
                     .font(.custom("Georgia-Bold", size: 34))
@@ -151,29 +155,62 @@ struct ContentView: View {
 
             modePicker
 
-            Spacer(minLength: 12)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 18) {
+                    EaseCard {
+                        Text(viewModel.selectedFileName ?? "Choose a recording")
+                            .font(.custom("Georgia", size: 24))
+                            .foregroundStyle(EasePalette.primaryText)
 
-            EaseCard {
-                Text(viewModel.selectedFileName ?? "Choose a recording")
-                    .font(.custom("Georgia", size: 24))
-                    .foregroundStyle(EasePalette.primaryText)
+                        Text(viewModel.fileReport.summary)
+                            .font(.system(size: 15))
+                            .foregroundStyle(EasePalette.secondaryText)
 
-                Text(viewModel.fileReport.summary)
-                    .font(.system(size: 15))
-                    .foregroundStyle(EasePalette.secondaryText)
+                        EaseActionButton(
+                            title: viewModel.isAnalyzingFile ? "Analyzing..." : "Choose audio file",
+                            fill: EasePalette.sage
+                        ) {
+                            guard !viewModel.isAnalyzingFile else { return }
+                            isImportingAudio = true
+                        }
 
-                EaseActionButton(
-                    title: viewModel.isAnalyzingFile ? "Analyzing..." : "Choose audio file",
-                    fill: EasePalette.sage
-                ) {
-                    guard !viewModel.isAnalyzingFile else { return }
-                    isImportingAudio = true
+                        #if DEBUG
+                        Button {
+                            guard !viewModel.isAnalyzingFile else { return }
+                            viewModel.analyzeBundledSample()
+                        } label: {
+                            Text("Run bundled sample (DEBUG)")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(EasePalette.secondaryText)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .stroke(EasePalette.outline, lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        #endif
+
+                        if let message = viewModel.whisperStatus.message {
+                            WhisperStatusStrip(
+                                message: message,
+                                isBusy: viewModel.whisperStatus.isBusy
+                            )
+                        }
+                    }
+
+                    if !viewModel.fileReport.events.isEmpty {
+                        DisfluencyBreakdownCard(report: viewModel.fileReport)
+                    }
+
+                    if !viewModel.fileTranscript.isEmpty {
+                        FileTranscriptCard(tokens: viewModel.fileTranscript)
+                    }
                 }
+                .padding(.top, 4)
+                .padding(.bottom, 24)
             }
-
-            LiveSessionReportSummary(report: viewModel.fileReport)
-
-            Spacer()
         }
     }
 
@@ -404,6 +441,11 @@ private struct LiveSessionReportView: View {
                         ReportRow(label: "Tension moments", value: "\(report.elevatedTensionMoments)")
                     }
 
+                    if !report.events.isEmpty {
+                        DisfluencyBreakdownCard(report: report)
+                        DisfluencyEventsCard(events: report.events)
+                    }
+
                     EaseMinimalButton(
                         title: "Done",
                         isPrimary: true,
@@ -508,5 +550,393 @@ private struct EaseMinimalButton: View {
                 .padding(.vertical, 16)
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Disfluency UI (Phase 4)
+
+private enum DisfluencyStyle {
+    static func color(for kind: DisfluencyKind) -> Color {
+        switch kind {
+        case .prolongation:    return EasePalette.mutedRose
+        case .block:           return EasePalette.mutedBrick
+        case .wordRepetition:  return EasePalette.sage
+        case .soundRepetition: return EasePalette.sage
+        case .interjection:    return EasePalette.mistBlue
+        }
+    }
+
+    static func label(for kind: DisfluencyKind) -> String {
+        switch kind {
+        case .prolongation:    return "Prolongation"
+        case .block:           return "Block"
+        case .wordRepetition:  return "Word repeat"
+        case .soundRepetition: return "Sound repeat"
+        case .interjection:    return "Filler"
+        }
+    }
+
+    static let displayOrder: [DisfluencyKind] = [
+        .prolongation, .block, .wordRepetition, .soundRepetition, .interjection
+    ]
+}
+
+private struct WhisperStatusStrip: View {
+    let message: String
+    let isBusy: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if isBusy {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .scaleEffect(0.8)
+                    .tint(EasePalette.secondaryText)
+            } else {
+                Circle()
+                    .fill(EasePalette.secondaryText.opacity(0.4))
+                    .frame(width: 6, height: 6)
+            }
+
+            Text(message)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(EasePalette.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(EasePalette.secondaryText.opacity(0.06))
+        )
+    }
+}
+
+/// Phase 3: streaming live transcript. Each token is colored by its
+/// classification (normal speech / prolongation / block / repetition /
+/// filler), and long silence gaps render as muted ellipses. Uses
+/// AttributedString so text wraps naturally — lets us show many more
+/// words than a single-line horizontal chip strip.
+private struct LiveTranscriptStrip: View {
+    let tokens: [LiveTranscriptToken]
+    let isActive: Bool
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                Group {
+                    if tokens.isEmpty {
+                        HStack {
+                            Text(placeholder)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(EasePalette.secondaryText.opacity(0.55))
+                            Spacer()
+                        }
+                    } else {
+                        Text(attributed)
+                            .font(.custom("Georgia", size: 18))
+                            .foregroundStyle(EasePalette.primaryText)
+                            .lineSpacing(6)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    // Anchor for auto-scroll.
+                    Color.clear.frame(height: 1).id("tail")
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(EasePalette.secondaryText.opacity(0.05))
+            )
+            .onChange(of: tokens.count) { _, _ in
+                withAnimation(.easeOut(duration: 0.25)) {
+                    proxy.scrollTo("tail", anchor: .bottom)
+                }
+            }
+        }
+    }
+
+    private var placeholder: String {
+        isActive ? "Listening…" : "Tap the orb to begin"
+    }
+
+    private var attributed: AttributedString {
+        var out = AttributedString("")
+        for (i, token) in tokens.enumerated() {
+            if i > 0 {
+                let gap = token.start - tokens[i - 1].end
+                if gap >= 1.0 {
+                    out.append(silence("  ····  ", isBlock: true))
+                } else if gap >= 0.7 {
+                    out.append(silence("  ···  ", isBlock: true))
+                } else if gap >= 0.4 {
+                    out.append(silence("  ··  ", isBlock: false))
+                } else {
+                    out.append(AttributedString(" "))
+                }
+            }
+            out.append(styled(token))
+        }
+        return out
+    }
+
+    private func styled(_ token: LiveTranscriptToken) -> AttributedString {
+        var s = AttributedString(token.text)
+        switch token.kind {
+        case .normal:
+            s.foregroundColor = EasePalette.primaryText
+        case .prolongation:
+            s.foregroundColor = EasePalette.mutedRose
+            s.backgroundColor = EasePalette.mutedRose.opacity(0.14)
+        case .block:
+            s.foregroundColor = EasePalette.mutedBrick
+            s.backgroundColor = EasePalette.mutedBrick.opacity(0.14)
+        case .wordRepetition:
+            s.foregroundColor = EasePalette.sage
+            s.backgroundColor = EasePalette.sage.opacity(0.16)
+        case .interjection:
+            s.foregroundColor = EasePalette.primaryText.opacity(0.75)
+            s.backgroundColor = EasePalette.mistBlue.opacity(0.9)
+        }
+        return s
+    }
+
+    private func silence(_ text: String, isBlock: Bool) -> AttributedString {
+        var s = AttributedString(text)
+        s.foregroundColor = isBlock
+            ? EasePalette.mutedBrick.opacity(0.8)
+            : EasePalette.secondaryText.opacity(0.6)
+        return s
+    }
+}
+
+/// Phase 4 revision: File-mode transcript, rendered as wrapping prose
+/// with the same color language as the live strip. Uses AttributedString
+/// so lines wrap naturally and highlighted words read as part of the
+/// paragraph, not as separate cards.
+private struct FileTranscriptCard: View {
+    let tokens: [LiveTranscriptToken]
+
+    var body: some View {
+        EaseCard {
+            Text("Transcript")
+                .font(.custom("Georgia-Bold", size: 18))
+                .foregroundStyle(EasePalette.primaryText)
+
+            Text(attributed)
+                .font(.custom("Georgia", size: 17))
+                .foregroundStyle(EasePalette.primaryText)
+                .lineSpacing(6)
+                .fixedSize(horizontal: false, vertical: true)
+
+            TranscriptLegend()
+                .padding(.top, 4)
+        }
+    }
+
+    private var attributed: AttributedString {
+        var out = AttributedString("")
+        for (i, token) in tokens.enumerated() {
+            if i > 0 {
+                let gap = token.start - tokens[i - 1].end
+                if gap >= 1.0 {
+                    out.append(silence("  ····  ", kind: .block))
+                } else if gap >= 0.7 {
+                    out.append(silence("  ···  ", kind: .block))
+                } else if gap >= 0.4 {
+                    out.append(silence("  ··  ", kind: .normal))
+                } else {
+                    out.append(AttributedString(" "))
+                }
+            }
+            out.append(styled(token))
+        }
+        return out
+    }
+
+    private func styled(_ token: LiveTranscriptToken) -> AttributedString {
+        var s = AttributedString(token.text)
+        let (fg, bg) = colors(for: token.kind)
+        s.foregroundColor = fg
+        if let bg {
+            s.backgroundColor = bg
+        }
+        return s
+    }
+
+    private func silence(_ text: String, kind: LiveTokenKind) -> AttributedString {
+        var s = AttributedString(text)
+        s.foregroundColor = kind == .block
+            ? EasePalette.mutedBrick.opacity(0.8)
+            : EasePalette.secondaryText.opacity(0.6)
+        return s
+    }
+
+    private func colors(for kind: LiveTokenKind) -> (Color, Color?) {
+        switch kind {
+        case .normal:
+            return (EasePalette.primaryText, nil)
+        case .prolongation:
+            return (EasePalette.mutedRose, EasePalette.mutedRose.opacity(0.14))
+        case .block:
+            return (EasePalette.mutedBrick, EasePalette.mutedBrick.opacity(0.14))
+        case .wordRepetition:
+            return (EasePalette.sage, EasePalette.sage.opacity(0.16))
+        case .interjection:
+            return (EasePalette.primaryText.opacity(0.75), EasePalette.mistBlue.opacity(0.9))
+        }
+    }
+}
+
+private struct TranscriptLegend: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            legendDot(color: EasePalette.mutedRose,  label: "Prolongation")
+            legendDot(color: EasePalette.mutedBrick, label: "Block")
+            legendDot(color: EasePalette.sage,       label: "Repeat")
+            legendDot(color: EasePalette.mistBlue.opacity(0.9), label: "Filler")
+        }
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(EasePalette.secondaryText)
+    }
+
+    private func legendDot(color: Color, label: String) -> some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(color)
+                .frame(width: 7, height: 7)
+            Text(label)
+        }
+    }
+}
+
+private struct DisfluencyBreakdownCard: View {
+    let report: StutterDetectionReport
+
+    var body: some View {
+        EaseCard {
+            Text("What we heard")
+                .font(.custom("Georgia", size: 20))
+                .foregroundStyle(EasePalette.primaryText)
+
+            Text("Gentle patterns found in \(formattedDuration). Counts, not judgments.")
+                .font(.system(size: 13))
+                .foregroundStyle(EasePalette.secondaryText)
+
+            HStack(spacing: 10) {
+                ForEach(visibleKinds, id: \.self) { kind in
+                    DisfluencyCountPill(
+                        kind: kind,
+                        count: report.eventCountsByKind[kind] ?? 0
+                    )
+                }
+            }
+        }
+    }
+
+    private var visibleKinds: [DisfluencyKind] {
+        let counts = report.eventCountsByKind
+        return DisfluencyStyle.displayOrder.filter { (counts[$0] ?? 0) > 0 }
+    }
+
+    private var formattedDuration: String {
+        let total = Int(report.analyzedDuration.rounded())
+        let m = total / 60
+        let s = total % 60
+        if m > 0 { return "\(m)m \(s)s" }
+        return "\(s)s"
+    }
+}
+
+private struct DisfluencyCountPill: View {
+    let kind: DisfluencyKind
+    let count: Int
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("\(count)")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(EasePalette.primaryText)
+            Text(DisfluencyStyle.label(for: kind))
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(EasePalette.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(DisfluencyStyle.color(for: kind).opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private struct DisfluencyEventsCard: View {
+    let events: [DisfluencyEvent]
+
+    var body: some View {
+        EaseCard {
+            Text("Moments")
+                .font(.custom("Georgia", size: 20))
+                .foregroundStyle(EasePalette.primaryText)
+
+            VStack(spacing: 10) {
+                ForEach(Array(events.enumerated()), id: \.offset) { _, event in
+                    DisfluencyEventRow(event: event)
+                }
+            }
+        }
+    }
+}
+
+private struct DisfluencyEventRow: View {
+    let event: DisfluencyEvent
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(DisfluencyStyle.color(for: event.kind))
+                .frame(width: 4)
+                .frame(maxHeight: .infinity)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Text(DisfluencyStyle.label(for: event.kind))
+                        .font(.system(size: 11, weight: .semibold))
+                        .tracking(0.4)
+                        .foregroundStyle(DisfluencyStyle.color(for: event.kind))
+                    Text(timestampText)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(EasePalette.secondaryText)
+                    Spacer()
+                    Text("\(Int(event.confidence * 100))%")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(EasePalette.secondaryText.opacity(0.7))
+                }
+
+                Text(event.text)
+                    .font(.custom("Georgia", size: 15))
+                    .foregroundStyle(EasePalette.primaryText)
+                    .lineLimit(1)
+
+                if let note = event.note {
+                    Text(note)
+                        .font(.system(size: 11))
+                        .foregroundStyle(EasePalette.secondaryText.opacity(0.75))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 6)
+    }
+
+    private var timestampText: String {
+        let s = Int(event.start.rounded(.down))
+        return String(format: "%d:%02d", s / 60, s % 60)
     }
 }
