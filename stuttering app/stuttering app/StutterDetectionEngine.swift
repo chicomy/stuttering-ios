@@ -17,6 +17,7 @@ struct StutterDetectionReport: Sendable {
     let rapidRestartCount: Int
     let elevatedTensionMoments: Int
     let summary: String
+    let events: [DisfluencyEvent]
 
     nonisolated init(
         likelyContainsStuttering: Bool,
@@ -27,7 +28,8 @@ struct StutterDetectionReport: Sendable {
         longestSpeechRun: TimeInterval,
         rapidRestartCount: Int,
         elevatedTensionMoments: Int,
-        summary: String
+        summary: String,
+        events: [DisfluencyEvent] = []
     ) {
         self.likelyContainsStuttering = likelyContainsStuttering
         self.confidence = confidence
@@ -38,6 +40,30 @@ struct StutterDetectionReport: Sendable {
         self.rapidRestartCount = rapidRestartCount
         self.elevatedTensionMoments = elevatedTensionMoments
         self.summary = summary
+        self.events = events
+    }
+
+    /// Non-mutating helper used when the acoustic path finishes first and
+    /// the text-layer events arrive later.
+    nonisolated func with(events: [DisfluencyEvent]) -> StutterDetectionReport {
+        StutterDetectionReport(
+            likelyContainsStuttering: likelyContainsStuttering,
+            confidence: confidence,
+            analyzedDuration: analyzedDuration,
+            speechDuration: speechDuration,
+            silenceDuration: silenceDuration,
+            longestSpeechRun: longestSpeechRun,
+            rapidRestartCount: rapidRestartCount,
+            elevatedTensionMoments: elevatedTensionMoments,
+            summary: summary,
+            events: events
+        )
+    }
+
+    var eventCountsByKind: [DisfluencyKind: Int] {
+        var counts: [DisfluencyKind: Int] = [:]
+        for e in events { counts[e.kind, default: 0] += 1 }
+        return counts
     }
 
     static let empty = StutterDetectionReport(
@@ -49,7 +75,8 @@ struct StutterDetectionReport: Sendable {
         longestSpeechRun: 0,
         rapidRestartCount: 0,
         elevatedTensionMoments: 0,
-        summary: "No audio analyzed yet."
+        summary: "No audio analyzed yet.",
+        events: []
     )
 }
 
